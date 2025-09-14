@@ -57,6 +57,10 @@ namespace lab1
 
         public bool IsEmpty => _top == null;
 
+        public LinkedStack()
+        {
+            // Конструктор по умолчанию
+        } 
         public IEnumerator<T> GetEnumerator()
         {
             Node current = _top;

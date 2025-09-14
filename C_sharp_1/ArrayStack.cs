@@ -7,6 +7,8 @@ namespace lab1
         private T[] _items;
         private int _top = -1;
 
+
+
         public ArrayStack(int capacity = 10)
         {
             _items = new T[capacity];

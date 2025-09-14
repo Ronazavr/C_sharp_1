@@ -1,20 +1,22 @@
 ﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Collections.Generic;
+using System.Reflection;
 
 namespace lab1
 {
     public partial class FormStack : Form
     {
         private IStack<object> currentStack;
-        private Type dataType = typeof(int);
+        private Type currentDataType = typeof(int);
         private bool isUnmutable = false;
+        private bool suppressTypeChangeEvent = false;
+
         public FormStack()
         {
             InitializeComponent();
-            // Инициализация стека по умолчанию
             currentStack = new ArrayStack<object>();
-
         }
 
         // Обновление ListBox
@@ -28,22 +30,66 @@ namespace lab1
         // Обработчик изменения типа стека
         private void RadioStackType_CheckedChanged(object sender, EventArgs e)
         {
+            if (suppressTypeChangeEvent) return;
+
+            // Сохраняем текущие данные
+            var tempList = new List<object>();
+            foreach (var item in currentStack)
+                tempList.Add(item);
+
+            // Создаем новый стек
             if (radioArrayStack.Checked)
                 currentStack = new ArrayStack<object>();
-            else if (radioLinkedStack.Checked)
+            else
                 currentStack = new LinkedStack<object>();
+
+            // Восстанавливаем данные (в обратном порядке)
+            for (int i = tempList.Count - 1; i >= 0; i--)
+                currentStack.Push(tempList[i]);
+
             UpdateListBox();
         }
 
         // Обработчик изменения типа данных
         private void RadioDataType_CheckedChanged(object sender, EventArgs e)
         {
-            if (radioInt.Checked) dataType = typeof(int);
-            else if (radioString.Checked) dataType = typeof(string);
-            else if (radioPoint.Checked) dataType = typeof(Point);
+            if (suppressTypeChangeEvent) return;
+
+            if (radioInt.Checked)
+                ChangeDataType(typeof(int));
+            else if (radioString.Checked)
+                ChangeDataType(typeof(string));
+            else if (radioPoint.Checked)
+                ChangeDataType(typeof(Point));
         }
 
-        // Push
+        // Изменение типа данных с очисткой стека
+        private void ChangeDataType(Type newType)
+        {
+            if (currentStack.Count > 0)
+            {
+                var result = MessageBox.Show("При изменении типа данных стек будет очищен. Продолжить?",
+                                           "Внимание", MessageBoxButtons.YesNo);
+                if (result == DialogResult.No)
+                {
+                    suppressTypeChangeEvent = true;
+
+                    // Возвращаем предыдущий выбор
+                    if (currentDataType == typeof(int)) radioInt.Checked = true;
+                    else if (currentDataType == typeof(string)) radioString.Checked = true;
+                    else if (currentDataType == typeof(Point)) radioPoint.Checked = true;
+
+                    suppressTypeChangeEvent = false;
+                    return;
+                }
+            }
+
+            currentDataType = newType;
+            currentStack.Clear();
+            UpdateListBox();
+        }
+
+        // Push с проверкой типа
         private void btnPush_Click(object sender, EventArgs e)
         {
             if (isUnmutable)
@@ -54,7 +100,7 @@ namespace lab1
 
             try
             {
-                object value = Convert.ChangeType(txtInput.Text, dataType);
+                object value = ConvertToType(txtInput.Text, currentDataType);
                 currentStack.Push(value);
                 UpdateListBox();
             }
@@ -62,6 +108,29 @@ namespace lab1
             {
                 MessageBox.Show($"Ошибка: {ex.Message}");
             }
+        }
+
+        // Преобразование строки в нужный тип
+        private object ConvertToType(string input, Type targetType)
+        {
+            if (targetType == typeof(int))
+            {
+                return int.Parse(input);
+            }
+            else if (targetType == typeof(string))
+            {
+                return input;
+            }
+            else if (targetType == typeof(Point))
+            {
+                var parts = input.Split(',');
+                if (parts.Length != 2)
+                    throw new FormatException("Точка должна быть в формате X,Y");
+
+                return new Point(int.Parse(parts[0]), int.Parse(parts[1]));
+            }
+
+            throw new NotSupportedException($"Тип {targetType.Name} не поддерживается");
         }
 
         // Pop
@@ -111,7 +180,7 @@ namespace lab1
         {
             try
             {
-                // Создаем новый стек с типом object
+                // Создаем новый стек
                 var convertedStack = new ArrayStack<object>();
 
                 // Преобразуем каждый элемент текущего стека в строку
@@ -120,9 +189,13 @@ namespace lab1
                     convertedStack.Push(item.ToString());
                 }
 
-                // Заменяем текущий стек на новый
+                // Меняем тип данных и стек
+                suppressTypeChangeEvent = true;
+                radioString.Checked = true;
+                suppressTypeChangeEvent = false;
+
+                currentDataType = typeof(string);
                 currentStack = convertedStack;
-                dataType = typeof(string);
                 UpdateListBox();
             }
             catch (Exception ex)
@@ -130,12 +203,13 @@ namespace lab1
                 MessageBox.Show($"Ошибка конвертации: {ex.Message}");
             }
         }
+
         // Проверка наличия элемента
         private void btnContains_Click(object sender, EventArgs e)
         {
             try
             {
-                object value = Convert.ChangeType(txtContains.Text, dataType);
+                object value = ConvertToType(txtContains.Text, currentDataType);
                 bool exists = false;
                 foreach (var item in currentStack)
                 {
@@ -179,15 +253,19 @@ namespace lab1
 
             try
             {
+                if (currentDataType != typeof(int) && currentDataType != typeof(Point))
+                    throw new InvalidOperationException("Операция поддерживается только для int и Point");
+
                 var tempStack = new ArrayStack<object>();
                 foreach (var item in currentStack)
                 {
-                    if (dataType == typeof(int))
+                    if (currentDataType == typeof(int))
                         tempStack.Push((int)item * 2);
-                    else if (dataType == typeof(Point))
-                        tempStack.Push(new Point(((Point)item).X * 2, ((Point)item).Y * 2));
-                    else
-                        throw new InvalidOperationException("Операция не поддерживается для этого типа");
+                    else if (currentDataType == typeof(Point))
+                    {
+                        var point = (Point)item;
+                        tempStack.Push(new Point(point.X * 2, point.Y * 2));
+                    }
                 }
                 currentStack = tempStack;
                 UpdateListBox();
@@ -205,11 +283,14 @@ namespace lab1
             foreach (var item in currentStack)
             {
                 bool isEven = false;
-                if (dataType == typeof(int))
+                if (currentDataType == typeof(int))
                     isEven = (int)item % 2 == 0;
-                else if (dataType == typeof(Point))
-                    isEven = ((Point)item).X % 2 == 0 && ((Point)item).Y % 2 == 0;
-                else if (dataType == typeof(string))
+                else if (currentDataType == typeof(Point))
+                {
+                    var point = (Point)item;
+                    isEven = point.X % 2 == 0 && point.Y % 2 == 0;
+                }
+                else if (currentDataType == typeof(string))
                     isEven = ((string)item).Length % 2 == 0;
 
                 if (isEven)
@@ -226,11 +307,14 @@ namespace lab1
             foreach (var item in currentStack)
             {
                 bool isEven = false;
-                if (dataType == typeof(int))
+                if (currentDataType == typeof(int))
                     isEven = (int)item % 2 == 0;
-                else if (dataType == typeof(Point))
-                    isEven = ((Point)item).X % 2 == 0 && ((Point)item).Y % 2 == 0;
-                else if (dataType == typeof(string))
+                else if (currentDataType == typeof(Point))
+                {
+                    var point = (Point)item;
+                    isEven = point.X % 2 == 0 && point.Y % 2 == 0;
+                }
+                else if (currentDataType == typeof(string))
                     isEven = ((string)item).Length % 2 == 0;
 
                 if (isEven)
