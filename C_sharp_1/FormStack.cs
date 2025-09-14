@@ -1,8 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
-using System.Collections.Generic;
-using System.Reflection;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace lab1
 {
@@ -12,11 +12,31 @@ namespace lab1
         private Type currentDataType = typeof(int);
         private bool isUnmutable = false;
         private bool suppressTypeChangeEvent = false;
+        private bool stackTypeLocked = false; // Новое поле для блокировки выбора типа стека
 
         public FormStack()
         {
             InitializeComponent();
             currentStack = new ArrayStack<object>();
+            UpdateStackTypeControls(); // Обновляем состояние элементов управления
+        }
+
+        // Обновление состояния элементов управления типом стека
+        private void UpdateStackTypeControls()
+        {
+            radioArrayStack.Enabled = !stackTypeLocked;
+            radioLinkedStack.Enabled = !stackTypeLocked;
+
+            // Визуальная обратная связь
+            groupBoxType.ForeColor = stackTypeLocked ? Color.Gray : SystemColors.ControlText;
+            if (stackTypeLocked)
+            {
+                toolTip.SetToolTip(groupBoxType, "Тип стека заблокирован. Очистите стек для изменения.");
+            }
+            else
+            {
+                toolTip.RemoveAll();
+            }
         }
 
         // Обновление ListBox
@@ -30,6 +50,20 @@ namespace lab1
         // Обработчик изменения типа стека
         private void RadioStackType_CheckedChanged(object sender, EventArgs e)
         {
+            if (stackTypeLocked)
+            {
+                // Восстанавливаем предыдущий выбор
+                suppressTypeChangeEvent = true;
+                if (currentStack is ArrayStack<object>)
+                    radioArrayStack.Checked = true;
+                else
+                    radioLinkedStack.Checked = true;
+                suppressTypeChangeEvent = false;
+
+                MessageBox.Show("Невозможно изменить тип стека после добавления элементов. Очистите стек, чтобы изменить тип.");
+                return;
+            }
+
             if (suppressTypeChangeEvent) return;
 
             // Сохраняем текущие данные
@@ -86,6 +120,11 @@ namespace lab1
 
             currentDataType = newType;
             currentStack.Clear();
+
+            // Разблокируем выбор типа стека при изменении типа данных
+            stackTypeLocked = false;
+            UpdateStackTypeControls();
+
             UpdateListBox();
         }
 
@@ -102,6 +141,14 @@ namespace lab1
             {
                 object value = ConvertToType(txtInput.Text, currentDataType);
                 currentStack.Push(value);
+
+                // Блокируем выбор типа стека после добавления первого элемента
+                if (!stackTypeLocked && currentStack.Count > 0)
+                {
+                    stackTypeLocked = true;
+                    UpdateStackTypeControls();
+                }
+
                 UpdateListBox();
             }
             catch (Exception ex)
@@ -139,6 +186,14 @@ namespace lab1
             try
             {
                 currentStack.Pop();
+
+                // Разблокируем выбор типа стека, если стек пуст
+                if (stackTypeLocked && currentStack.Count == 0)
+                {
+                    stackTypeLocked = false;
+                    UpdateStackTypeControls();
+                }
+
                 UpdateListBox();
             }
             catch (StackException ex)
@@ -164,6 +219,14 @@ namespace lab1
         private void btnClear_Click(object sender, EventArgs e)
         {
             currentStack.Clear();
+
+            // Разблокируем выбор типа стека при очистке
+            if (stackTypeLocked)
+            {
+                stackTypeLocked = false;
+                UpdateStackTypeControls();
+            }
+
             UpdateListBox();
         }
 
@@ -172,6 +235,11 @@ namespace lab1
         {
             currentStack = new UnmutableStack<object>(currentStack);
             isUnmutable = true;
+
+            // Блокируем выбор типа стека для неизменяемого стека
+            stackTypeLocked = true;
+            UpdateStackTypeControls();
+
             MessageBox.Show("Стек теперь неизменяемый!");
         }
 
@@ -196,6 +264,10 @@ namespace lab1
 
                 currentDataType = typeof(string);
                 currentStack = convertedStack;
+
+                // Сохраняем состояние блокировки типа стека
+                UpdateStackTypeControls();
+
                 UpdateListBox();
             }
             catch (Exception ex)
@@ -234,6 +306,11 @@ namespace lab1
             {
                 currentStack = unmutableStack.GetOriginalStack();
                 isUnmutable = false;
+
+                // Восстанавливаем состояние блокировки типа стека
+                stackTypeLocked = currentStack.Count > 0;
+                UpdateStackTypeControls();
+
                 MessageBox.Show("Стек теперь изменяемый!");
             }
             else
@@ -297,6 +374,11 @@ namespace lab1
                     evenStack.Push(item);
             }
             currentStack = evenStack;
+
+            // Обновляем состояние блокировки типа стека
+            stackTypeLocked = currentStack.Count > 0;
+            UpdateStackTypeControls();
+
             UpdateListBox();
         }
 
@@ -321,6 +403,11 @@ namespace lab1
                     lastEven = item;
             }
             MessageBox.Show(lastEven != null ? $"Последний четный: {lastEven}" : "Четных элементов нет");
+        }
+
+        private void FormStack_Load(object sender, EventArgs e)
+        {
+
         }
     }
 }
