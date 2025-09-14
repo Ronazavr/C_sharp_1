@@ -1,8 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+using System.Collections.Generic;
 
 namespace lab1
 {
@@ -12,33 +11,45 @@ namespace lab1
         private Type currentDataType = typeof(int);
         private bool isUnmutable = false;
         private bool suppressTypeChangeEvent = false;
-        private bool stackTypeLocked = false; // Новое поле для блокировки выбора типа стека
+        private bool stackTypeLocked = false;
+        private ToolTip stackToolTip; // Переименовали поле
 
         public FormStack()
         {
             InitializeComponent();
             currentStack = new ArrayStack<object>();
-            UpdateStackTypeControls(); // Обновляем состояние элементов управления
+
+            // Инициализируем ToolTip с новым именем
+            stackToolTip = new ToolTip();
+            stackToolTip.AutoPopDelay = 5000;
+            stackToolTip.InitialDelay = 500;
+            stackToolTip.ReshowDelay = 100;
+
+            UpdateStackTypeControls();
         }
 
         // Обновление состояния элементов управления типом стека
         private void UpdateStackTypeControls()
         {
-            radioArrayStack.Enabled = !stackTypeLocked;
-            radioLinkedStack.Enabled = !stackTypeLocked;
+            // Проверяем, что элементы управления инициализированы
+            if (radioArrayStack != null && radioLinkedStack != null && groupBoxType != null)
+            {
+                radioArrayStack.Enabled = !stackTypeLocked;
+                radioLinkedStack.Enabled = !stackTypeLocked;
 
-            // Визуальная обратная связь
-            groupBoxType.ForeColor = stackTypeLocked ? Color.Gray : SystemColors.ControlText;
-            if (stackTypeLocked)
-            {
-                toolTip.SetToolTip(groupBoxType, "Тип стека заблокирован. Очистите стек для изменения.");
-            }
-            else
-            {
-                toolTip.RemoveAll();
+                // Визуальная обратная связь
+                groupBoxType.ForeColor = stackTypeLocked ? Color.Gray : SystemColors.ControlText;
+
+                if (stackTypeLocked)
+                {
+                    stackToolTip.SetToolTip(groupBoxType, "Тип стека заблокирован. Очистите стек для изменения.");
+                }
+                else
+                {
+                    stackToolTip.RemoveAll();
+                }
             }
         }
-
         // Обновление ListBox
         private void UpdateListBox()
         {
