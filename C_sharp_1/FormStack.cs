@@ -7,19 +7,20 @@ namespace lab1
 {
     public partial class FormStack : Form
     {
-        private IStack<object> currentStack;
+        // Три отдельных стека с конкретными типами
+        private IStack<int> intStack = new ArrayStack<int>();
+        private IStack<string> stringStack = new ArrayStack<string>();
+        private IStack<Point> pointStack = new ArrayStack<Point>();
+
         private Type currentDataType = typeof(int);
         private bool isUnmutable = false;
         private bool suppressTypeChangeEvent = false;
         private bool stackTypeLocked = false;
-        private ToolTip stackToolTip; // Переименовали поле
+        private ToolTip stackToolTip;
 
         public FormStack()
         {
             InitializeComponent();
-            currentStack = new ArrayStack<object>();
-
-            // Инициализируем ToolTip с новым именем
             stackToolTip = new ToolTip();
             stackToolTip.AutoPopDelay = 5000;
             stackToolTip.InitialDelay = 500;
@@ -31,13 +32,10 @@ namespace lab1
         // Обновление состояния элементов управления типом стека
         private void UpdateStackTypeControls()
         {
-            // Проверяем, что элементы управления инициализированы
             if (radioArrayStack != null && radioLinkedStack != null && groupBoxType != null)
             {
                 radioArrayStack.Enabled = !stackTypeLocked;
                 radioLinkedStack.Enabled = !stackTypeLocked;
-
-                // Визуальная обратная связь
                 groupBoxType.ForeColor = stackTypeLocked ? Color.Gray : SystemColors.ControlText;
 
                 if (stackTypeLocked)
@@ -50,11 +48,74 @@ namespace lab1
                 }
             }
         }
+
+        // Вспомогательные методы для работы с текущим стеком
+        private int GetCurrentStackCount()
+        {
+            if (currentDataType == typeof(int)) return intStack.Count;
+            if (currentDataType == typeof(string)) return stringStack.Count;
+            if (currentDataType == typeof(Point)) return pointStack.Count;
+            return 0;
+        }
+
+        private void ClearCurrentStack()
+        {
+            if (currentDataType == typeof(int)) intStack.Clear();
+            else if (currentDataType == typeof(string)) stringStack.Clear();
+            else if (currentDataType == typeof(Point)) pointStack.Clear();
+        }
+
+        private void PushToCurrentStack(object value)
+        {
+            if (currentDataType == typeof(int)) intStack.Push((int)value);
+            else if (currentDataType == typeof(string)) stringStack.Push((string)value);
+            else if (currentDataType == typeof(Point)) pointStack.Push((Point)value);
+        }
+
+        private void PopFromCurrentStack()
+        {
+            if (currentDataType == typeof(int)) intStack.Pop();
+            else if (currentDataType == typeof(string)) stringStack.Pop();
+            else if (currentDataType == typeof(Point)) pointStack.Pop();
+        }
+
+        private object PeekFromCurrentStack()
+        {
+            if (currentDataType == typeof(int)) return intStack.Peek();
+            if (currentDataType == typeof(string)) return stringStack.Peek();
+            if (currentDataType == typeof(Point)) return pointStack.Peek();
+            return null;
+        }
+
+        private bool IsCurrentStackEmpty()
+        {
+            if (currentDataType == typeof(int)) return intStack.IsEmpty;
+            if (currentDataType == typeof(string)) return stringStack.IsEmpty;
+            if (currentDataType == typeof(Point)) return pointStack.IsEmpty;
+            return true;
+        }
+
+        private IEnumerable<object> GetCurrentStackEnumerable()
+        {
+            if (currentDataType == typeof(int))
+            {
+                foreach (var item in intStack) yield return item;
+            }
+            else if (currentDataType == typeof(string))
+            {
+                foreach (var item in stringStack) yield return item;
+            }
+            else if (currentDataType == typeof(Point))
+            {
+                foreach (var item in pointStack) yield return item;
+            }
+        }
+
         // Обновление ListBox
         private void UpdateListBox()
         {
             listBoxStack.Items.Clear();
-            foreach (var item in currentStack)
+            foreach (var item in GetCurrentStackEnumerable())
                 listBoxStack.Items.Add(item);
         }
 
@@ -63,14 +124,17 @@ namespace lab1
         {
             if (stackTypeLocked)
             {
-                // Восстанавливаем предыдущий выбор
                 suppressTypeChangeEvent = true;
-                if (currentStack is ArrayStack<object>)
+
+                // Восстанавливаем предыдущий выбор
+                if ((currentDataType == typeof(int) && intStack is ArrayStack<int>) ||
+                    (currentDataType == typeof(string) && stringStack is ArrayStack<string>) ||
+                    (currentDataType == typeof(Point) && pointStack is ArrayStack<Point>))
                     radioArrayStack.Checked = true;
                 else
                     radioLinkedStack.Checked = true;
-                suppressTypeChangeEvent = false;
 
+                suppressTypeChangeEvent = false;
                 MessageBox.Show("Невозможно изменить тип стека после добавления элементов. Очистите стек, чтобы изменить тип.");
                 return;
             }
@@ -79,18 +143,26 @@ namespace lab1
 
             // Сохраняем текущие данные
             var tempList = new List<object>();
-            foreach (var item in currentStack)
+            foreach (var item in GetCurrentStackEnumerable())
                 tempList.Add(item);
 
             // Создаем новый стек
             if (radioArrayStack.Checked)
-                currentStack = new ArrayStack<object>();
+            {
+                if (currentDataType == typeof(int)) intStack = new ArrayStack<int>();
+                else if (currentDataType == typeof(string)) stringStack = new ArrayStack<string>();
+                else if (currentDataType == typeof(Point)) pointStack = new ArrayStack<Point>();
+            }
             else
-                currentStack = new LinkedStack<object>();
+            {
+                if (currentDataType == typeof(int)) intStack = new LinkedStack<int>();
+                else if (currentDataType == typeof(string)) stringStack = new LinkedStack<string>();
+                else if (currentDataType == typeof(Point)) pointStack = new LinkedStack<Point>();
+            }
 
             // Восстанавливаем данные (в обратном порядке)
             for (int i = tempList.Count - 1; i >= 0; i--)
-                currentStack.Push(tempList[i]);
+                PushToCurrentStack(tempList[i]);
 
             UpdateListBox();
         }
@@ -111,7 +183,7 @@ namespace lab1
         // Изменение типа данных с очисткой стека
         private void ChangeDataType(Type newType)
         {
-            if (currentStack.Count > 0)
+            if (GetCurrentStackCount() > 0)
             {
                 var result = MessageBox.Show("При изменении типа данных стек будет очищен. Продолжить?",
                                            "Внимание", MessageBoxButtons.YesNo);
@@ -130,7 +202,7 @@ namespace lab1
             }
 
             currentDataType = newType;
-            currentStack.Clear();
+            ClearCurrentStack();
 
             // Разблокируем выбор типа стека при изменении типа данных
             stackTypeLocked = false;
@@ -151,10 +223,10 @@ namespace lab1
             try
             {
                 object value = ConvertToType(txtInput.Text, currentDataType);
-                currentStack.Push(value);
+                PushToCurrentStack(value);
 
                 // Блокируем выбор типа стека после добавления первого элемента
-                if (!stackTypeLocked && currentStack.Count > 0)
+                if (!stackTypeLocked && GetCurrentStackCount() > 0)
                 {
                     stackTypeLocked = true;
                     UpdateStackTypeControls();
@@ -196,10 +268,10 @@ namespace lab1
         {
             try
             {
-                currentStack.Pop();
+                PopFromCurrentStack();
 
                 // Разблокируем выбор типа стека, если стек пуст
-                if (stackTypeLocked && currentStack.Count == 0)
+                if (stackTypeLocked && IsCurrentStackEmpty())
                 {
                     stackTypeLocked = false;
                     UpdateStackTypeControls();
@@ -218,7 +290,7 @@ namespace lab1
         {
             try
             {
-                MessageBox.Show($"Вершина стека: {currentStack.Peek()}");
+                MessageBox.Show($"Вершина стека: {PeekFromCurrentStack()}");
             }
             catch (StackException ex)
             {
@@ -229,7 +301,7 @@ namespace lab1
         // Clear
         private void btnClear_Click(object sender, EventArgs e)
         {
-            currentStack.Clear();
+            ClearCurrentStack();
 
             // Разблокируем выбор типа стека при очистке
             if (stackTypeLocked)
@@ -244,7 +316,13 @@ namespace lab1
         // Создание неизменяемого стека
         private void btnMakeUnmutable_Click(object sender, EventArgs e)
         {
-            currentStack = new UnmutableStack<object>(currentStack);
+            if (currentDataType == typeof(int))
+                intStack = new UnmutableStack<int>(intStack);
+            else if (currentDataType == typeof(string))
+                stringStack = new UnmutableStack<string>(stringStack);
+            else if (currentDataType == typeof(Point))
+                pointStack = new UnmutableStack<Point>(pointStack);
+
             isUnmutable = true;
 
             // Блокируем выбор типа стека для неизменяемого стека
@@ -254,39 +332,6 @@ namespace lab1
             MessageBox.Show("Стек теперь неизменяемый!");
         }
 
-        // Конвертация элементов (пример: int -> string)
-        private void btnConvert_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                // Создаем новый стек
-                var convertedStack = new ArrayStack<object>();
-
-                // Преобразуем каждый элемент текущего стека в строку
-                foreach (var item in currentStack)
-                {
-                    convertedStack.Push(item.ToString());
-                }
-
-                // Меняем тип данных и стек
-                suppressTypeChangeEvent = true;
-                radioString.Checked = true;
-                suppressTypeChangeEvent = false;
-
-                currentDataType = typeof(string);
-                currentStack = convertedStack;
-
-                // Сохраняем состояние блокировки типа стека
-                UpdateStackTypeControls();
-
-                UpdateListBox();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка конвертации: {ex.Message}");
-            }
-        }
-
         // Проверка наличия элемента
         private void btnContains_Click(object sender, EventArgs e)
         {
@@ -294,7 +339,8 @@ namespace lab1
             {
                 object value = ConvertToType(txtContains.Text, currentDataType);
                 bool exists = false;
-                foreach (var item in currentStack)
+
+                foreach (var item in GetCurrentStackEnumerable())
                 {
                     if (item.Equals(value))
                     {
@@ -302,6 +348,7 @@ namespace lab1
                         break;
                     }
                 }
+
                 MessageBox.Show(exists ? "Элемент найден" : "Элемент не найден");
             }
             catch (Exception ex)
@@ -313,21 +360,32 @@ namespace lab1
         // Сделать стек изменяемым
         private void btnMakeMutable_Click(object sender, EventArgs e)
         {
-            if (currentStack is UnmutableStack<object> unmutableStack)
+            if (currentDataType == typeof(int) && intStack is UnmutableStack<int> unmutableIntStack)
             {
-                currentStack = unmutableStack.GetOriginalStack();
+                intStack = unmutableIntStack.GetOriginalStack();
                 isUnmutable = false;
-
-                // Восстанавливаем состояние блокировки типа стека
-                stackTypeLocked = currentStack.Count > 0;
-                UpdateStackTypeControls();
-
-                MessageBox.Show("Стек теперь изменяемый!");
+            }
+            else if (currentDataType == typeof(string) && stringStack is UnmutableStack<string> unmutableStringStack)
+            {
+                stringStack = unmutableStringStack.GetOriginalStack();
+                isUnmutable = false;
+            }
+            else if (currentDataType == typeof(Point) && pointStack is UnmutableStack<Point> unmutablePointStack)
+            {
+                pointStack = unmutablePointStack.GetOriginalStack();
+                isUnmutable = false;
             }
             else
             {
                 MessageBox.Show("Стек уже изменяемый");
+                return;
             }
+
+            // Восстанавливаем состояние блокировки типа стека
+            stackTypeLocked = GetCurrentStackCount() > 0;
+            UpdateStackTypeControls();
+
+            MessageBox.Show("Стек теперь изменяемый!");
         }
 
         // Умножить все значения на 2
@@ -344,18 +402,21 @@ namespace lab1
                 if (currentDataType != typeof(int) && currentDataType != typeof(Point))
                     throw new InvalidOperationException("Операция поддерживается только для int и Point");
 
-                var tempStack = new ArrayStack<object>();
-                foreach (var item in currentStack)
+                if (currentDataType == typeof(int))
                 {
-                    if (currentDataType == typeof(int))
-                        tempStack.Push((int)item * 2);
-                    else if (currentDataType == typeof(Point))
-                    {
-                        var point = (Point)item;
-                        tempStack.Push(new Point(point.X * 2, point.Y * 2));
-                    }
+                    var tempStack = new ArrayStack<int>();
+                    foreach (int item in intStack)
+                        tempStack.Push(item * 2);
+                    intStack = tempStack;
                 }
-                currentStack = tempStack;
+                else if (currentDataType == typeof(Point))
+                {
+                    var tempStack = new ArrayStack<Point>();
+                    foreach (Point item in pointStack)
+                        tempStack.Push(new Point(item.X * 2, item.Y * 2));
+                    pointStack = tempStack;
+                }
+
                 UpdateListBox();
             }
             catch (Exception ex)
@@ -367,27 +428,33 @@ namespace lab1
         // Найти все четные элементы
         private void btnFindAllEven_Click(object sender, EventArgs e)
         {
-            var evenStack = new ArrayStack<object>();
-            foreach (var item in currentStack)
+            if (currentDataType == typeof(int))
             {
-                bool isEven = false;
-                if (currentDataType == typeof(int))
-                    isEven = (int)item % 2 == 0;
-                else if (currentDataType == typeof(Point))
-                {
-                    var point = (Point)item;
-                    isEven = point.X % 2 == 0 && point.Y % 2 == 0;
-                }
-                else if (currentDataType == typeof(string))
-                    isEven = ((string)item).Length % 2 == 0;
-
-                if (isEven)
-                    evenStack.Push(item);
+                var evenStack = new ArrayStack<int>();
+                foreach (int item in intStack)
+                    if (item % 2 == 0)
+                        evenStack.Push(item);
+                intStack = evenStack;
             }
-            currentStack = evenStack;
+            else if (currentDataType == typeof(Point))
+            {
+                var evenStack = new ArrayStack<Point>();
+                foreach (Point item in pointStack)
+                    if (item.X % 2 == 0 && item.Y % 2 == 0)
+                        evenStack.Push(item);
+                pointStack = evenStack;
+            }
+            else if (currentDataType == typeof(string))
+            {
+                var evenStack = new ArrayStack<string>();
+                foreach (string item in stringStack)
+                    if (item.Length % 2 == 0)
+                        evenStack.Push(item);
+                stringStack = evenStack;
+            }
 
             // Обновляем состояние блокировки типа стека
-            stackTypeLocked = currentStack.Count > 0;
+            stackTypeLocked = GetCurrentStackCount() > 0;
             UpdateStackTypeControls();
 
             UpdateListBox();
@@ -397,28 +464,32 @@ namespace lab1
         private void btnFindLastEven_Click(object sender, EventArgs e)
         {
             object lastEven = null;
-            foreach (var item in currentStack)
-            {
-                bool isEven = false;
-                if (currentDataType == typeof(int))
-                    isEven = (int)item % 2 == 0;
-                else if (currentDataType == typeof(Point))
-                {
-                    var point = (Point)item;
-                    isEven = point.X % 2 == 0 && point.Y % 2 == 0;
-                }
-                else if (currentDataType == typeof(string))
-                    isEven = ((string)item).Length % 2 == 0;
 
-                if (isEven)
-                    lastEven = item;
+            if (currentDataType == typeof(int))
+            {
+                foreach (int item in intStack)
+                    if (item % 2 == 0)
+                        lastEven = item;
             }
+            else if (currentDataType == typeof(Point))
+            {
+                foreach (Point item in pointStack)
+                    if (item.X % 2 == 0 && item.Y % 2 == 0)
+                        lastEven = item;
+            }
+            else if (currentDataType == typeof(string))
+            {
+                foreach (string item in stringStack)
+                    if (item.Length % 2 == 0)
+                        lastEven = item;
+            }
+
             MessageBox.Show(lastEven != null ? $"Последний четный: {lastEven}" : "Четных элементов нет");
         }
 
         private void FormStack_Load(object sender, EventArgs e)
         {
-
+            // Пустая реализация
         }
     }
 }
